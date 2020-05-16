@@ -1,0 +1,134 @@
+D-WAVE EXAMPLE ATTEMPT – ARMY LIST CONSTRAINTS
+
+I’m thinking of trying to find all possible combinations of units from an army list in Wargaming: An Introduction by Neil Thomas.  How many combinations are there in a New Model Army from the Pike and Shot Era? 
+One way to answer this question is add up the total possible number of units by taking the max units per type of unit and summing.  Then each one of those is in the army or not (binary).  The sum of the binary units must be 8.  
+
+The inspiration for trying this method came from: See https://docs.ocean.dwavesys.com/en/latest/examples/scheduling.html#scheduling
+
+The book, Wargaming: An Introduction, has rules for playing war games with miniatures. And, by rules, I mean several sets of rules for different eras.
+One era covers the 1600s, called the Pike and Shot era.  Each era, or set of rules, has several suggestions for armies, such as the Royalist army and the Parliamentarian army.
+Those two armies are different, have different units and different options. It's the options that I'm interested in.  How many different armies can be made from the options in the Royalist army?
+
+CONSTRAINTS IN THE ROYALIST ARMY LIST
+•	Constraint 1 – Total number of units in the army must be 8.
+•	Constraint 2 – Minimum number of Infantry is 2.
+•	Constraint 3 – Maximum number of Infantry is4.
+•	Constraint 6 – Minimum number of Cannon is 1.
+•	Constraint 7 – Maximum number of Cannon is 4.
+•	Constraint 8 – Minimum number of Chevaliers is 2. 
+•	Constraint 9 – Maximum number of Chevaliers is 4.
+•	Constraint 10 – Minimum number of Dragoons is 0.
+•	Constraint 11 – Maximum number of Dragoons is 1.
+
+LIST OF BINARY VARIABLES
+The max number of units that are possible, disregarding Constraint 1, is 13.  Therefore there will be 13 binary variables.
+Unit01I = 1 when the first Infantry unit is included in the army, 0 when it is not.
+Unit02I = 1 when the second Infantry unit is included in the army, 0 when it is not.
+Unit03I = 1 when the third Infantry unit is included in the army, 0 when it is not.
+Unit04I = 1 when the fourth Infantry unit is included in the army, 0 when it is not.
+Unit05C = 1 when the first Cannon unit is included in the army, 0 when it is not.
+Unit06C = 1 when the second Cannon unit is included in the army, 0 when it is not.
+Unit07C = 1 when the third Cannon unit is included in the army, 0 when it is not.
+Unit08C = 1 when the fourth Cannon unit is included in the army, 0 when it is not.
+Unit09H = 1 when the first Chevalier unit is included in the army, 0 when it is not.
+Unit10H = 1 when the second Chevalier unit is included in the army, 0 when it is not.
+Unit11H = 1 when the third Chevalier unit is included in the army, 0 when it is not.
+Unit12H = 1 when the fourth Chevalier unit is included in the army, 0 when it is not.
+Unit13D = 1 when the only Dragoon unit is included in the army, 0 when it is not.
+
+PARTIAL LIST OF ALL POSSIBLE VALUES
+Here is a table of a few potential possibilities that show how one particular row either satisfies all constraints or not.  The table has one column for each possible unit in the army.  A value of one indicates that the unit is present and a value of zero indicates the unit is not.  A complete list of all possible army lists, whether valid or not, would require 2^^13 or 8,192 rows.
+ 
+
+
+PYTHON FUNCTIONS FOR EACH CONSTRAINT
+def EightUnitLimit(unit01I, unit02I, unit03I, unit04I, unit05C, unit06C, unit07C, unit08C, unit09H, unit10H, unit11H, unit12H, unit13D):
+	armylimit = unit01I + unit02I + unit03I + unit04I + unit05C + unit06C + unit07C + unit08C + unit09H + unit10H + unit11H + unit12H + unit13D
+	if armylimit == 8:
+		return True
+	else:
+		return False
+
+def MinInfantry(unit01I, unit02I, unit03I, unit04I):
+	if ((unit01I + unit02I + unit03I + unit04I) > 1):
+		return True
+	else:
+		return False
+
+def MaxInfantry(unit01I, unit02I, unit03I, unit04I):
+	if ((unit01I + unit02I + unit03I + unit04I) < 5):
+		return True
+	else:
+		return False
+
+def MinCannon(unit05C, unit06C, unit07C, unit08C):
+	if ((unit05C + unit06C + unit07C + unit08C) > 0):
+		return True
+	else:
+		return False
+
+def MaxCannon(unit05C, unit06C, unit07C, unit08C):
+	if ((unit05C + unit06C + unit07C + unit08C) < 5):
+		return True
+	else:
+		return False
+
+def MinChevalier(unit09H, unit10H, unit11H, unit12H):
+	if ((unit09H + unit10H + unit11H + unit12H) > 1):
+		return True
+	else:
+		return False
+
+def MaxChevalier(unit09H, unit10H, unit11H, unit12H):
+	if ((unit09H + unit10H + unit11H + unit12H) < 5):
+		return True
+	else:
+		return False
+
+def MinDragoon(unit13D):
+	if (unit13D > -1):
+		return True
+	else:
+		return False
+
+def MaxDragoon(unit13D):
+	if ((unit13D < 2):
+		return True
+	else:
+		return False
+
+PYTHON CODE TO ADD CONSTRAINTS
+import dwavebinarycsp
+csp = dwavebinarycsp.ConstraintSatisfactionProblem(dwavebinarycsp.BINARY)
+csp.add_constraint(EightUnitLimit, [‘unit01I’, ’unit02I’, ‘unit03I’, ‘unit04I’, ‘unit05C’, ‘unit06C’, ‘unit07C’, ‘unit08C’, ‘unit09H’, ‘unit10H’, ‘unit11H’, ‘unit12H’, ‘unit13D’])
+csp.add_constraint(MinInfantry,[‘unit01I’, ‘unit02I’, ‘unit03I’, ‘unit04I’])
+csp.add_constraint(MaxInfantry,[‘unit01I’, ‘unit02I’, ‘unit03I’, ‘unit04I’])
+csp.add_constraint(MinCannon,[‘unit05C’, ‘unit06C’, ‘unit07C’, ‘unit08C’])
+csp.add_constraint(MaxCannon,[‘unit05C’, ‘unit06C’, ‘unit07C’, ‘unit08C’])
+csp.add_constraint(MinChevalier,[‘unit09H’, ‘unit10H’, ‘unit11H’, ‘unit12H’])
+csp.add_constraint(MaxChevalier,[‘unit09H’, ‘unit10H’, ‘unit11H’, ‘unit12H’])
+csp.add_constraint(MinDragoon,[‘unit13D’])
+csp.add_constraint(MaxDragoon,[‘unit13D’])
+
+
+PYTHON CODE TO SOLVE ON A D-WAVE SYSTEM
+bqm = dwavebinarycsp.stitch(csp)
+<<<add code to set default sampler, see Configuring Access to D-Wave Solvers>>>
+from dwave.system import DWaveSampler, EmbeddingComposite
+sampler = EmeddingComposite(DWaveSampler())
+
+sampleset = sampler.sample(bqm, num_reads = 5000)
+
+PYTHON CODE TO PRINT SOLUTION
+
+
+total = 0
+for sample, energy, occurences in sampleset.data([‘sample’, ‘energy’, ‘num_occurrences’]):
+	total = total + occurences
+	if isclose(energy, min_energy, abs_tol=1.0):
+		totinfantry = sample[‘’] + sample[‘’] + sample[‘’] + sample[‘’]
+		totcannon = sample[‘’] + sample[‘’] + sample[‘’] + sample[‘’]
+		totchevalier = sample[‘’] + sample[‘’] + sample[‘’] + sample[‘’] 
+		totdragoon = sample[‘’] 
+		print(“{}: Infantry {}, Cannon {}, Chevalier {}, Dragoons {}”.format(occurrences, totinfantry, totcannon, totchevalier, totdragoon))
+print(“Total occurrences: “, total)
