@@ -1,0 +1,276 @@
+D-WAVE EXAMPLE ATTEMPT – XOR GATE WITH QUBO
+This is my attempt at the third beginner example.  I’m trying to follow the example of the AND Gate as closely as possible and 
+produce an XOR Gate.  The 4th example on the website is an And Gate.  Let’s see how close I get.  
+See -- https://docs.ocean.dwavesys.com/en/stable/examples/and.html
+
+A XOR TABLE
+The following table takes X and Y as input and produces Z in a XOR operation. 
+X1 (input)	X2 (input)	Z (output)
+0	0	0
+0	1	1
+1	0	1
+1	1	0
+
+THE PENALTY FUNCTION
+I’m going to try this by following the process on docs.dwavesys.com/docs/latest/c_gs_6.html. Need a formula that produces the 
+following penalties based on X1, X2, and Z. 
+X1	X2	Z	Valid?	Penalty
+0	0	0	Yes	0
+0	0	1	No	1 or greater
+0	1	0	No	1 or greater 
+0	1	1	Yes	0
+1	0	0	No	1 or greater
+1	0	1	Yes	0
+1	1	0	Yes	0
+1	1	1	No	1 or greater
+
+
+A, B, C -> D
+0,0,0 -> 0 
+0,0,1 -> 1+
+0,1,0 -> 1+
+0,1,1 -> 0
+1,0,0 -> 1+
+1,0,1 -> 0
+1,1,0 -> 0
+1,1,1 -> 1+
+
+I know that 
+a)	When everything is 0, the answer is 0, which implies a+b+c = 0
+b)	When there is a single 1, the answer is 1 or more, which implies a(a+b+c)+b(a+b+c)+c(a+b+c)=es
+c)	When there is a single 0, the answer is 0, which means to multiply the above equation by (2-a-b-c)
+d)	When everything is 1, the answer is 1 or more, which means when there are less than three 1, leave it alone, but when there is three 1s, multiple by -1.  
+
+That’s too complicated. Let’s start over.  I know that --
+a)	When everything is 0, the answer is 0, which implies a+b+c = 0
+b)	When there is a single 1, the answer is 1 or more, which implies a+b+c = 1.  Its’ the same. 
+c)	When there is a single 0, the answer is 0, which means to multiply the above equation by (2-a-b-c)
+d)	When everything is 1, the answer is 1 or more, which means the equation needs to be squared.  
+
+((a+b+c)(2-a-b-c))((a+b+c)(2-a-b-c))
+
+Let’s simplify this to (2a+2b+2c-a-ab-ac-ab-b-bc-ac-bc-c) (2a+2b+2c-a-ab-ac-ab-b-bc-ac-bc-c)
+
+(a+b+c-2ab-2bc-2ac)(a+b+c-2ab-2bc-2ac) = energy state
+(a+ab+ac-2ab-2abc-2ac) +
+(ab+b+bc-2ab-2bc-2abc) +
+(ac+bc+c-2abc-2bc-2ac) +
+(-2ab-2ab-2abc+4ab+4abc+4abc) +
+(-2abc-2bc-2bc+4abc+4bc+4abc) +
+(-2ac-2abc-2ac+4abc+4abc+4ac) = energy state
+a+b+c -2ab -2ac -2bc +12abc = energy state
+
+OK, I maybe did something weird, but it looks like it works. 
+a+b+c-2ab-2ac-2bc+12abc = energy state, gives seven terms in the linear polynomial equation.  There is a problem though.  
+QUBO likes terms with only two variables.  Things like a*b or b*c are OK, but a*b*c is not OK.   It’s not OK because a term with three 
+variables won’t fit into a quadratic equation.  By quadratic I mean a two-dimensional matrix. The term quadratic comes from the idea 
+that you can describe the terms in a polynomial in a two-dimensional table or “square.”  By square, I mean a 4-sided figure, and thus 
+quadratic. This is an old term. Today we would probably say tabular.  
+
+Why do I say a quadratic equation can be described in a square?  Imagine the variables across the top as column headers.  And the same 
+variables down the left hand side as row headers.  In each cell, you put the coefficient for the corresponding term.  For example, in 
+our equation above one particular term is -2ac.  Find the cell where the column is a and the row is c and put a -2 there.  You can 
+also see that a -2 goes where the column is c and the row is a.  In other words, the upper right triangular half of the matrix is a 
+mirror image of the lower left triangular half. For QUBO, you only need to fill in the upper right triangle.  
+
+You might also be thinking, Where does the coefficient for a by itself fit.  The first cell, where a is both the column and the row, 
+if reserved for a^2, which is a squared.  What about a by itself?  Remember that 0*0 = 0 and 1*1 = 1.  Since we are dealing with 
+binary variables, the coefficient for a can be used for the cell a^2. And the same for b^2 and c^2.  
+
+That leaves us with a problem.  Where does the 12 for +12abc go?  It does not fit in the matrix and therefore doesn’t fit in a QUBO.  
+What to do? The answer is ancillary variables. 
+ 
+ANCILLARY VARIABLES
+ See sections 4.3 and 10.1.2 of the Problem Solvers Handbook for more information on fitting non-quadratic equations to QUBO.
+Here is a response I got from “David J” at D-Wave when I posted this question to the General Discussion board.
+
+“Hello,
+It looks like you need some auxiliary variables.
+The implementation in the documentation here uses one auxiliary variable for the XOR implementation:
+https://docs.dwavesys.com/docs/latest/c_handbook_3.html#elementary-boolean-operations-to-qubo
+It was recommended to me to have the dwavebinarycsp talk to penaltymodels on your behalf, because it will make multiple calls to penaltymodels until a solution is found during the dwavebinarycsp.stitch(...) function call.
+They had also mentioned that the direct call to penaltymodels might not have succeeded if not enough auxiliary variables are provided.
+Not having to worry about explicitly including the auxiliary variables is another nice feature of using the dwavebinarycsp.
+Here is a code example using dwavebinarycsp:
+In [1]: import dwavebinarycsp as dbc
+In [2]: csp = dbc.ConstraintSatisfactionProblem(dbc.BINARY)
+In [3]: valid_config = {(0, 0, 0), (0, 1, 1), (1, 0, 1), (1, 1, 0)}
+In [4]: csp.add_constraint(valid_config, ('a', 'b', 'out'))
+In [5]: bqm = dbc.stitch(csp)
+In [6]: bqm
+Out[6]: BinaryQuadraticModel({a: -2.0, b: -2.0, out: -2.0, aux0: -4.0, aux1: 4.0}, {('a', 'b'): 0.0, ('a', 'out'): 0.0, ('a', 'aux0'): 4.0, ('a', 'aux1'): 4.0, ('b', 'out'): 4.0, ('b', 'aux0'): 4.0, ('b', 'aux1'): -4.0, ('out', 'aux0'): 4.0, ('out', 'aux1'): -4.0, ('aux0', 'aux1'): 0.0}, 4.0, 'BINARY')
+I hope this was helpful!
+Please let us know if you have any further questions or need clarification.”
+
+How does this code work?  We have to look at the tools dwavebinarycsp and dimod.  The first tool, dwavebinarycsp, builds a quadratic
+model. The second tool, dimod, is a means for using samplers.  Together the model and the sampler solve the problem.  The code above 
+only builds the model.  It still needs to be used somehow.  That’s where the second tool comes in. 
+
+Let’s look at the first tool, dwavebinarycsp, but take a step back as well.  According to the D-Wave documentation, solving a problem 
+takes five steps: 1) formulate the problem as a graph, 2) create the binary constraints, 3) build the quadratic model, 4) sample – 
+which means find actual solutions from potential solutions, and then 5) print the solution(s).  
+
+I did steps 1 and 2 above, and am stuck on step 3.  Since I am not formulating the problem on my own, I need to use dwavebinarycsp to 
+help.  What information does this tool need from me?  It needs a graph and a set of constraints.  It was the set of constraints that 
+was stopping me because I couldn’t get it to fit a quadratic.  
+
+A CSP has variables and constraints on those variables.  Adding variables and constraints can be a simple as
+>>> import operator
+>>> csp = dwavebinarycsp.ConstraintSatisfactionProblem('BINARY') # empty CSP
+>>> csp.add_constraint(operator.eq, ['a', 'b'])       # constraint a = b
+>>> csp.add_constraint(operator.ne, ['b', 'c'])       # constraint b cannot = c
+
+Constraints can also be python functions.  
+
+Once all the variables and constraints have been built, the CSP needs to be stitched or built. Let’s look at the Binary Quadratic 
+Model that the code above built. 
+
+Out[6]: BinaryQuadraticModel(
+{a: -2.0, 
+ b: -2.0, 
+ out: -2.0, 
+ aux0: -4.0, 
+ aux1: 4.0}, 
+{('a', 'b'): 0.0, 
+ ('a', 'out'): 0.0, 
+ ('a', 'aux0'): 4.0, 
+ ('a', 'aux1'): 4.0, 
+ ('b', 'out'): 4.0, 
+ ('b', 'aux0'): 4.0, 
+ ('b', 'aux1'): -4.0, 
+ ('out', 'aux0'): 4.0, 
+ ('out', 'aux1'): -4.0, 
+ ('aux0', 'aux1'): 0.0}, 
+4.0, 'BINARY')
+
+This model has the three variables we gave it: a, b, and out.  It created two others: aux0 and aux1.  These two are the auxiliary 
+or ancillary variables that need to be there to get the invalid combinations of a, b, and out as higher energy levels.  For the sake 
+of a simpler formula, let’s use d for aux0 and e for aux1.  The QUBO matrix becomes
+ 	 a	b	 c	 d	 e
+a	-2	0	 0	 4	 4
+b	   -2	 4	 4  -4
+c	 	    -2	 4	-4
+d	 	 	      -4	 0
+e	 	 	 	         4
+
+And the formula thus becomes
+-2a-2b-2c-4d+4e+4ad+4ae+4bc+4bd-4be+4cd-4ce
+
+We can put this in an MS Excel spreadsheet and see what the energy levels (output) of the formula is for every unique combination 
+of a, b, c, d, and e.  That’s five binary variables, which means there will be 32 rows in the spreadsheet.  
+
+a	b	c	d	e	Term-2a	Term-2b	Term-2c	Term-4d	Term+4e	Term+4ad	Term+4ae	Term+4bc	Term+4bd	Term-4be	Term+4cd	Term-4ce	Sum	Valid?
+0	0	0	1	0	0	0	0	-4	0	0	0	0	0	0	0	0	-4	Valid
+0	1	1	0	1	0	-2	-2	0	4	0	0	4	0	-4	0	-4	-4	Valid
+1	0	1	0	0	-2	0	-2	0	0	0	0	0	0	0	0	0	-4	Valid
+1	1	0	0	0	-2	-2	0	0	0	0	0	0	0	0	0	0	-4	Valid
+0	0	1	0	0	0	0	-2	0	0	0	0	0	0	0	0	0	-2	Invalid
+0	0	1	0	1	0	0	-2	0	4	0	0	0	0	0	0	-4	-2	Invalid
+0	0	1	1	0	0	0	-2	-4	0	0	0	0	0	0	4	0	-2	Invalid
+0	0	1	1	1	0	0	-2	-4	4	0	0	0	0	0	4	-4	-2	Invalid
+0	1	0	0	0	0	-2	0	0	0	0	0	0	0	0	0	0	-2	Invalid
+0	1	0	0	1	0	-2	0	0	4	0	0	0	0	-4	0	0	-2	Invalid
+0	1	0	1	0	0	-2	0	-4	0	0	0	0	4	0	0	0	-2	Invalid
+0	1	0	1	1	0	-2	0	-4	4	0	0	0	4	-4	0	0	-2	Invalid
+1	0	0	0	0	-2	0	0	0	0	0	0	0	0	0	0	0	-2	Invalid
+1	0	0	1	0	-2	0	0	-4	0	4	0	0	0	0	0	0	-2	Invalid
+1	1	1	0	0	-2	-2	-2	0	0	0	0	4	0	0	0	0	-2	Invalid
+1	1	1	0	1	-2	-2	-2	0	4	0	4	4	0	-4	0	-4	-2	Invalid
+0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	Valid
+0	0	0	1	1	0	0	0	-4	4	0	0	0	0	0	0	0	0	Valid
+0	1	1	0	0	0	-2	-2	0	0	0	0	4	0	0	0	0	0	Valid
+0	1	1	1	1	0	-2	-2	-4	4	0	0	4	4	-4	4	-4	0	Valid
+1	0	1	0	1	-2	0	-2	0	4	0	4	0	0	0	0	-4	0	Valid
+1	0	1	1	0	-2	0	-2	-4	0	4	0	0	0	0	4	0	0	Valid
+1	1	0	0	1	-2	-2	0	0	4	0	4	0	0	-4	0	0	0	Valid
+1	1	0	1	0	-2	-2	0	-4	0	4	0	0	4	0	0	0	0	Valid
+0	0	0	0	1	0	0	0	0	4	0	0	0	0	0	0	0	4	Valid
+0	1	1	1	0	0	-2	-2	-4	0	0	0	4	4	0	4	0	4	Valid
+1	0	1	1	1	-2	0	-2	-4	4	4	4	0	0	0	4	-4	4	Valid
+1	1	0	1	1	-2	-2	0	-4	4	4	4	0	4	-4	0	0	4	Valid
+1	0	0	0	1	-2	0	0	0	4	0	4	0	0	0	0	0	6	Invalid
+1	0	0	1	1	-2	0	0	-4	4	4	4	0	0	0	0	0	6	Invalid
+1	1	1	1	0	-2	-2	-2	-4	0	4	0	4	4	0	4	0	6	Invalid
+1	1	1	1	1	-2	-2	-2	-4	4	4	4	4	4	-4	4	-4	6	Invalid
+
+The resulting spreadsheet had four rows that resulted in an energy level of -4 and all are valid.  Other rows where a, b, and c 
+result in valid had energy levels of 0 and +6.  Invalid rows had energy levels of -2 and +4.  So, really the valid rows that had 
+higher energy levels than -4 were redundant.  They can be thrown away.  Thus, the QUBO is fine. 
+
+PYTHON CODE
+# bring in the tool from d-wave
+import dwavebinarycsp as dbc
+# create a shell for the csp, BINARY is good enough
+csp = dbc.ConstraintSatisfactionProblem(dbc.BINARY)
+# tell it what a XOR operator does (tell it what is valid)
+valid_config = {(0, 0, 0), (0, 1, 1), (1, 0, 1), (1, 1, 0)}
+# tell it how to interpret what is valid
+csp.add_constraint(valid_config, ('a', 'b', 'out'))
+# build it
+bqm = dbc.stitch(csp)
+# get the sampler which will get our solution
+import dimod as dm
+# get the solution by sampling
+soln = dm.ExactSolver().sample(bqm)
+# print the solution to make sure our XOR is correct
+for sample, energy in soln.data([‘sample’,’energy’]):
+	print(sample, csp.check(sample), energy)
+
+
+
+ACTUAL CODE AND RESULTS
+
+# bring in the tool from d-wave
+import dwavebinarycsp as dbc
+# create a shell for the csp, BINARY is good enough
+csp = dbc.ConstraintSatisfactionProblem(dbc.BINARY)
+# tell it what a XOR operator does (tell it what is valid)
+valid_config = {(0, 0, 0), (0, 1, 1), (1, 0, 1), (1, 1, 0)}
+# tell it how to interpret what is valid
+csp.add_constraint(valid_config, ('a', 'b', 'out'))
+# build it
+bqm = dbc.stitch(csp)
+# get the sampler which will get our solution
+import dimod as dm
+# get the solution by sampling
+soln = dm.ExactSolver().sample(bqm)
+# print the solution to make sure our XOR is correct
+for sample, energy in soln.data(['sample','energy']):
+    print(sample, csp.check(sample), energy)
+{'a': 0, 'aux0': 0, 'aux1': 1, 'b': 0, 'out': 0} True 0.0 
+{'a': 1, 'aux0': 0, 'aux1': 1, 'b': 1, 'out': 0} True 0.0 
+{'a': 1, 'aux0': 0, 'aux1': 1, 'b': 0, 'out': 1} True 0.0 
+{'a': 0, 'aux0': 1, 'aux1': 0, 'b': 1, 'out': 1} True 0.0 
+{'a': 1, 'aux0': 1, 'aux1': 1, 'b': 1, 'out': 1} False 2.0 
+{'a': 1, 'aux0': 0, 'aux1': 1, 'b': 0, 'out': 0} False 2.0 
+{'a': 0, 'aux0': 1, 'aux1': 1, 'b': 0, 'out': 1} False 2.0 
+{'a': 0, 'aux0': 1, 'aux1': 0, 'b': 1, 'out': 0} False 2.0 
+{'a': 1, 'aux0': 1, 'aux1': 0, 'b': 1, 'out': 1} False 2.0 
+{'a': 0, 'aux0': 0, 'aux1': 1, 'b': 0, 'out': 1} False 2.0 
+{'a': 0, 'aux0': 1, 'aux1': 0, 'b': 0, 'out': 1} False 2.0 
+{'a': 0, 'aux0': 0, 'aux1': 0, 'b': 0, 'out': 1} False 2.0 
+{'a': 1, 'aux0': 0, 'aux1': 0, 'b': 1, 'out': 1} False 2.0 
+{'a': 1, 'aux0': 0, 'aux1': 1, 'b': 1, 'out': 1} False 2.0 
+{'a': 0, 'aux0': 0, 'aux1': 0, 'b': 1, 'out': 0} False 2.0 
+{'a': 0, 'aux0': 0, 'aux1': 1, 'b': 1, 'out': 0} False 2.0 
+{'a': 0, 'aux0': 1, 'aux1': 1, 'b': 1, 'out': 0} False 2.0 
+{'a': 1, 'aux0': 1, 'aux1': 1, 'b': 0, 'out': 1} True 4.0 
+{'a': 0, 'aux0': 1, 'aux1': 1, 'b': 1, 'out': 1} True 4.0 
+{'a': 0, 'aux0': 0, 'aux1': 0, 'b': 0, 'out': 0} True 4.0 
+{'a': 0, 'aux0': 1, 'aux1': 1, 'b': 0, 'out': 0} True 4.0 
+{'a': 1, 'aux0': 0, 'aux1': 0, 'b': 0, 'out': 1} True 4.0 
+{'a': 0, 'aux0': 0, 'aux1': 0, 'b': 1, 'out': 1} True 4.0 
+{'a': 1, 'aux0': 0, 'aux1': 0, 'b': 1, 'out': 0} True 4.0 
+{'a': 1, 'aux0': 1, 'aux1': 1, 'b': 1, 'out': 0} True 4.0 
+{'a': 1, 'aux0': 1, 'aux1': 0, 'b': 1, 'out': 0} True 8.0 
+{'a': 1, 'aux0': 1, 'aux1': 0, 'b': 0, 'out': 1} True 8.0 
+{'a': 0, 'aux0': 0, 'aux1': 1, 'b': 1, 'out': 1} True 8.0 
+{'a': 0, 'aux0': 1, 'aux1': 0, 'b': 0, 'out': 0} True 8.0 
+{'a': 1, 'aux0': 1, 'aux1': 1, 'b': 0, 'out': 0} False 10.0 
+{'a': 1, 'aux0': 0, 'aux1': 0, 'b': 0, 'out': 0} False 10.0 
+{'a': 1, 'aux0': 1, 'aux1': 0, 'b': 0, 'out': 0} False 18.0
+
+
+The results are correct.  Look only at a, b, and out.  The variables a and b are  the input for the XOR table and the variable out 
+is the output.  Very cool. 
+
